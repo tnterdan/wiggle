@@ -19,6 +19,24 @@ APPLICATION_TITLE = 'Wiggle'
 APPLICATION_VERSION = '0.1'
 
 
+class Brush(QImage):
+    def __init__(self):
+        super().__init__(3, 3, QImage.Format_ARGB32)
+
+        red = QColor(255, 0, 0)
+        transparent = QColor(0, 0, 0, 0)
+
+        self.setPixelColor(0, 0, transparent)
+        self.setPixelColor(0, 1, red)
+        self.setPixelColor(0, 2, transparent)
+        self.setPixelColor(1, 0, red)
+        self.setPixelColor(1, 1, red)
+        self.setPixelColor(1, 2, red)
+        self.setPixelColor(2, 0, transparent)
+        self.setPixelColor(2, 1, red)
+        self.setPixelColor(2, 2, transparent)
+
+
 class Image(object):
     WIDTH = 256
     HEIGHT = 256
@@ -46,18 +64,7 @@ class Image(object):
         self.layers = [layer]
         self.current_layer = 0
 
-        red = QColor(255, 0, 0)
-        transparent = QColor(0, 0, 0, 0)
-        self.brush = QImage(3, 3, QImage.Format_ARGB32)
-        self.brush.setPixelColor(0, 0, transparent)
-        self.brush.setPixelColor(0, 1, red)
-        self.brush.setPixelColor(0, 2, transparent)
-        self.brush.setPixelColor(1, 0, red)
-        self.brush.setPixelColor(1, 1, red)
-        self.brush.setPixelColor(1, 2, red)
-        self.brush.setPixelColor(2, 0, transparent)
-        self.brush.setPixelColor(2, 1, red)
-        self.brush.setPixelColor(2, 2, transparent)
+        self.brush = Brush()
 
     def width(self):
         return self.WIDTH
