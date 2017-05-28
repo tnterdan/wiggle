@@ -16,15 +16,11 @@ APPLICATION_TITLE = 'Wiggle'
 APPLICATION_VERSION = '0.1'
 
 
-class Canvas(QWidget):
+class Image(object):
     WIDTH = 256
     HEIGHT = 256
-    ZOOM = 4
 
     def __init__(self):
-        super().__init__()
-
-        # Data
         self.layers = []
         self.layers.append(
             QImage(
@@ -48,8 +44,52 @@ class Canvas(QWidget):
         self.brush.setPixelColor(2, 1, red)
         self.brush.setPixelColor(2, 2, transparent)
 
+    def width(self):
+        return self.WIDTH
+
+    def height(self):
+        return self.HEIGHT
+
+    def draw_with_brush(self, pos):
+        painter = QPainter()
+        painter.begin(self.layers[self.current_layer])
+        painter.drawImage(
+            pos,
+            self.brush,
+            QRect(0, 0, self.brush.width(), self.brush.height())
+        )
+        painter.end()
+
+    def composited(self):
+        target = QImage(self.width(), self.height(), QImage.Format_ARGB32)
+
+        painter = QPainter()
+        painter.begin(target)
+
+        for layer in self.layers:
+            painter.drawImage(
+                QPoint(0, 0),
+                layer,
+                QRect(0, 0, layer.width(), layer.height())
+            )
+
+        painter.end()
+        return target
+
+
+class Canvas(QWidget):
+    ZOOM = 4
+
+    def __init__(self):
+        super().__init__()
+        self.image = Image()
+
         # Resize and center on the screen
-        self.resize(self.WIDTH * self.ZOOM, self.HEIGHT * self.ZOOM)
+        self.resize(
+            self.image.width() * self.ZOOM,
+            self.image.height() * self.ZOOM
+        )
+
         geom = self.frameGeometry()
         geom.moveCenter(QDesktopWidget().availableGeometry().center())
         self.move(geom.topLeft())
@@ -60,14 +100,7 @@ class Canvas(QWidget):
         self.show()
 
     def mousePressEvent(self, event):
-        painter = QPainter()
-        painter.begin(self.layers[self.current_layer])
-        painter.drawImage(
-            event.pos() / self.ZOOM,
-            self.brush,
-            QRect(0, 0, self.brush.width(), self.brush.height())
-        )
-        painter.end()
+        self.image.draw_with_brush(event.pos() / self.ZOOM)
         self.update()
 
     def mouseMoveEvent(self, event):
@@ -76,33 +109,25 @@ class Canvas(QWidget):
         if not is_left_button_pressed:
             return
 
-        painter = QPainter()
-        painter.begin(self.layers[self.current_layer])
-        painter.drawImage(
-            event.pos() / self.ZOOM,
-            self.brush,
-            QRect(0, 0, self.brush.width(), self.brush.height())
-        )
-        painter.end()
+        self.image.draw_with_brush(event.pos() / self.ZOOM)
         self.update()
 
     def paintEvent(self, event):
-        painter = QPainter()
-        painter.begin(self)
-
-        for layer in self.layers:
-            zoomed_layer = layer.scaled(
-                layer.width() * self.ZOOM,
-                layer.height() * self.ZOOM,
+        composited = \
+            self.image.composited().scaled(
+                self.image.width() * self.ZOOM,
+                self.image.height() * self.ZOOM,
                 Qt.IgnoreAspectRatio,
                 Qt.FastTransformation
             )
-            painter.drawImage(
-                QPoint(0, 0),
-                zoomed_layer,
-                QRect(0, 0, zoomed_layer.width(), zoomed_layer.height())
-            )
 
+        painter = QPainter()
+        painter.begin(self)
+        painter.drawImage(
+            QPoint(0, 0),
+            composited,
+            QRect(0, 0, composited.width(), composited.height())
+        )
         painter.end()
 
 
