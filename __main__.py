@@ -1,4 +1,6 @@
+import os
 import sys
+
 from PyQt5.QtCore import QPoint, QRect, Qt
 from PyQt5.QtGui import (
     QColor,
@@ -8,6 +10,7 @@ from PyQt5.QtGui import (
 from PyQt5.QtWidgets import (
     QApplication,
     QDesktopWidget,
+    QFileDialog,
     QWidget,
 )
 
@@ -21,6 +24,8 @@ class Image(object):
     HEIGHT = 256
 
     def __init__(self):
+        self.filename = None
+
         self.layers = []
         self.layers.append(
             QImage(
@@ -76,8 +81,8 @@ class Image(object):
         painter.end()
         return target
 
-    def save(self, filename):
-        self.composited().save(filename, format=None)
+    def save(self):
+        self.composited().save(self.filename, format=None)
 
 
 class Canvas(QWidget):
@@ -135,10 +140,27 @@ class Canvas(QWidget):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_S and \
-                bool(event.modifiers() and Qt.ControlModifier):
-            filename = 'image.png'  # TODO
-            self.image.save(filename)
-            print('saved to {}'.format(filename))
+                bool(event.modifiers() and Qt.ControlModifier) and \
+                self.capture_filename_if_necessary():
+            self.image.save()
+            print('saved to {}'.format(self.image.filename))
+
+    def capture_filename_if_necessary(self):
+        if self.image.filename:
+            return True
+
+        filename = QFileDialog.getSaveFileName(
+            self,
+            'Save image',
+            os.getcwd(),
+            'PNG images (*.png)'
+        )[0]
+
+        if filename:
+            self.image.filename = filename
+            return True
+
+        return False
 
 
 if __name__ == '__main__':
