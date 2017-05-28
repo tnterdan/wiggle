@@ -26,14 +26,24 @@ class Image(object):
     def __init__(self):
         self.filename = None
 
-        self.layers = []
-        self.layers.append(
-            QImage(
-                self.WIDTH,
-                self.HEIGHT,
-                QImage.Format_ARGB32
-            )
+        layer = QImage(
+            self.WIDTH,
+            self.HEIGHT,
+            QImage.Format_ARGB32
         )
+
+        painter = QPainter()
+        painter.begin(layer)
+        painter.fillRect(
+            0,
+            0,
+            layer.width(),
+            layer.height(),
+            QColor(255, 255, 255)
+        )
+        painter.end()
+
+        self.layers = [layer]
         self.current_layer = 0
 
         red = QColor(255, 0, 0)
