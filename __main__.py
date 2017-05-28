@@ -4,13 +4,16 @@ import sys
 from PyQt5.QtCore import QPoint, QRect, Qt
 from PyQt5.QtGui import (
     QColor,
+    QIcon,
     QImage,
     QPainter,
 )
 from PyQt5.QtWidgets import (
+    QAction,
     QApplication,
     QDesktopWidget,
     QFileDialog,
+    QMainWindow,
     QWidget,
 )
 
@@ -102,17 +105,31 @@ class Image(object):
         self.composited().save(self.filename, format=None)
 
 
-class Canvas(QWidget):
-    ZOOM = 4
-
+class Wiggle(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.image = Image()
+
+        self.canvas = Canvas()
+        self.setCentralWidget(self.canvas)
+
+        saveAction = QAction(QIcon.fromTheme('document-save'), 'Save', self)
+        saveAction.setShortcut('Ctrl+S')
+        saveAction.setStatusTip('Save image')
+        saveAction.triggered.connect(self.save)
+
+        self.statusbar = self.statusBar()
+
+        menubar = self.menuBar()
+        fileMenu = menubar.addMenu('&File')
+        fileMenu.addAction(saveAction)
+
+        toolbar = self.addToolBar('Main')
+        toolbar.addAction(saveAction)
 
         # Resize and center on the screen
         self.resize(
-            self.image.width() * self.ZOOM,
-            self.image.height() * self.ZOOM
+            self.canvas.width(),
+            self.canvas.height()
         )
 
         geom = self.frameGeometry()
@@ -123,6 +140,26 @@ class Canvas(QWidget):
             '{} v{}'.format(APPLICATION_TITLE, APPLICATION_VERSION))
 
         self.show()
+
+    def save(self):
+        self.statusbar.clearMessage()
+        saved_filename = self.canvas.save()
+        if saved_filename:
+            self.statusbar.showMessage('Saved to {}'.format(saved_filename))
+
+
+class Canvas(QWidget):
+    ZOOM = 4
+
+    def __init__(self):
+        super().__init__()
+        self.image = Image()
+
+    def width(self):
+        return self.image.width() * self.ZOOM
+
+    def height(self):
+        return self.image.height() * self.ZOOM
 
     def mousePressEvent(self, event):
         self.image.draw_with_brush(event.pos() / self.ZOOM)
@@ -157,10 +194,14 @@ class Canvas(QWidget):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_S and \
-                bool(event.modifiers() and Qt.ControlModifier) and \
-                self.capture_filename_if_necessary():
+                bool(event.modifiers() and Qt.ControlModifier):
+            self.save()
+
+    def save(self):
+        if self.capture_filename_if_necessary():
             self.image.save()
-            print('saved to {}'.format(self.image.filename))
+            return self.image.filename
+        return None
 
     def capture_filename_if_necessary(self):
         if self.image.filename:
@@ -182,5 +223,5 @@ class Canvas(QWidget):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    canvas = Canvas()
+    wiggle = Wiggle()
     sys.exit(app.exec_())
