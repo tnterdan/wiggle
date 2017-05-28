@@ -19,7 +19,7 @@ APPLICATION_VERSION = '0.1'
 class Canvas(QWidget):
     WIDTH = 256
     HEIGHT = 256
-    SCALE = 4
+    ZOOM = 4
 
     def __init__(self):
         super().__init__()
@@ -28,8 +28,8 @@ class Canvas(QWidget):
         self.layers = []
         self.layers.append(
             QImage(
-                self.WIDTH * self.SCALE,
-                self.HEIGHT * self.SCALE,
+                self.WIDTH,
+                self.HEIGHT,
                 QImage.Format_ARGB32
             )
         )
@@ -37,25 +37,19 @@ class Canvas(QWidget):
 
         red = QColor(255, 0, 0)
         transparent = QColor(0, 0, 0, 0)
-        unscaled_brush = QImage(3, 3, QImage.Format_ARGB32)
-        unscaled_brush.setPixelColor(0, 0, transparent)
-        unscaled_brush.setPixelColor(0, 1, red)
-        unscaled_brush.setPixelColor(0, 2, transparent)
-        unscaled_brush.setPixelColor(1, 0, red)
-        unscaled_brush.setPixelColor(1, 1, red)
-        unscaled_brush.setPixelColor(1, 2, red)
-        unscaled_brush.setPixelColor(2, 0, transparent)
-        unscaled_brush.setPixelColor(2, 1, red)
-        unscaled_brush.setPixelColor(2, 2, transparent)
-        self.brush = unscaled_brush.scaled(
-            unscaled_brush.width() * self.SCALE,
-            unscaled_brush.height() * self.SCALE,
-            Qt.IgnoreAspectRatio,
-            Qt.FastTransformation
-        )
+        self.brush = QImage(3, 3, QImage.Format_ARGB32)
+        self.brush.setPixelColor(0, 0, transparent)
+        self.brush.setPixelColor(0, 1, red)
+        self.brush.setPixelColor(0, 2, transparent)
+        self.brush.setPixelColor(1, 0, red)
+        self.brush.setPixelColor(1, 1, red)
+        self.brush.setPixelColor(1, 2, red)
+        self.brush.setPixelColor(2, 0, transparent)
+        self.brush.setPixelColor(2, 1, red)
+        self.brush.setPixelColor(2, 2, transparent)
 
         # Resize and center on the screen
-        self.resize(self.WIDTH * self.SCALE, self.HEIGHT * self.SCALE)
+        self.resize(self.WIDTH * self.ZOOM, self.HEIGHT * self.ZOOM)
         geom = self.frameGeometry()
         geom.moveCenter(QDesktopWidget().availableGeometry().center())
         self.move(geom.topLeft())
@@ -69,7 +63,7 @@ class Canvas(QWidget):
         painter = QPainter()
         painter.begin(self.layers[self.current_layer])
         painter.drawImage(
-            event.pos(),
+            event.pos() / self.ZOOM,
             self.brush,
             QRect(0, 0, self.brush.width(), self.brush.height())
         )
@@ -85,7 +79,7 @@ class Canvas(QWidget):
         painter = QPainter()
         painter.begin(self.layers[self.current_layer])
         painter.drawImage(
-            event.pos(),
+            event.pos() / self.ZOOM,
             self.brush,
             QRect(0, 0, self.brush.width(), self.brush.height())
         )
@@ -97,10 +91,16 @@ class Canvas(QWidget):
         painter.begin(self)
 
         for layer in self.layers:
+            zoomed_layer = layer.scaled(
+                layer.width() * self.ZOOM,
+                layer.height() * self.ZOOM,
+                Qt.IgnoreAspectRatio,
+                Qt.FastTransformation
+            )
             painter.drawImage(
-                QPoint(10, 10),
-                layer,
-                QRect(0, 0, layer.width(), layer.height())
+                QPoint(0, 0),
+                zoomed_layer,
+                QRect(0, 0, zoomed_layer.width(), zoomed_layer.height())
             )
 
         painter.end()
