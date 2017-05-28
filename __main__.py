@@ -76,6 +76,9 @@ class Image(object):
         painter.end()
         return target
 
+    def save(self, filename):
+        self.composited().save(filename, format=None)
+
 
 class Canvas(QWidget):
     ZOOM = 4
@@ -129,6 +132,13 @@ class Canvas(QWidget):
             QRect(0, 0, composited.width(), composited.height())
         )
         painter.end()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_S and \
+                bool(event.modifiers() and Qt.ControlModifier):
+            filename = 'image.png'  # TODO
+            self.image.save(filename)
+            print('saved to {}'.format(filename))
 
 
 if __name__ == '__main__':
