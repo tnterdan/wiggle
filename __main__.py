@@ -81,8 +81,8 @@ class Image(object):
     WIDTH = 256
     HEIGHT = 256
 
-    def __init__(self):
-        self.filename = None
+    def __init__(self, filename=None):
+        self.filename = filename
 
         layer = QImage(
             self.WIDTH,
@@ -90,25 +90,28 @@ class Image(object):
             QImage.Format_ARGB32
         )
 
-        painter = QPainter()
-        painter.begin(layer)
-        painter.fillRect(
-            0,
-            0,
-            layer.width(),
-            layer.height(),
-            QColor(255, 255, 255)
-        )
-        painter.end()
+        if self.filename:
+            layer.load(self.filename)
+        else:
+            painter = QPainter()
+            painter.begin(layer)
+            painter.fillRect(
+                0,
+                0,
+                layer.width(),
+                layer.height(),
+                QColor(255, 255, 255)
+            )
+            painter.end()
 
         self.layers = [layer]
         self.current_layer = 0
 
     def width(self):
-        return self.WIDTH
+        return max(layer.width() for layer in self.layers)
 
     def height(self):
-        return self.HEIGHT
+        return max(layer.height() for layer in self.layers)
 
     def draw_with_brush(self, brush, pos):
         painter = QPainter()
@@ -153,6 +156,11 @@ class Wiggle(QMainWindow):
         self.current_document = 0
         self.add_empty_canvas()
 
+        openAction = QAction(QIcon.fromTheme('document-open'), 'Open', self)
+        openAction.setShortcut('Ctrl+O')
+        openAction.setStatusTip('Open image')
+        openAction.triggered.connect(self.open)
+
         saveAction = QAction(QIcon.fromTheme('document-save'), 'Save', self)
         saveAction.setShortcut('Ctrl+S')
         saveAction.setStatusTip('Save image')
@@ -162,9 +170,11 @@ class Wiggle(QMainWindow):
 
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
+        fileMenu.addAction(openAction)
         fileMenu.addAction(saveAction)
 
         toolbar = self.addToolBar('Main')
+        toolbar.addAction(openAction)
         toolbar.addAction(saveAction)
 
         self.swatches = Swatches(self)
@@ -179,15 +189,18 @@ class Wiggle(QMainWindow):
         self.showMaximized()
 
     def add_empty_canvas(self):
-        CANVAS_PADDING = 60
-        canvas = Canvas.scrollable(self)
+        self.add_canvas_for_filename(None)
 
-        self.document_area \
-            .addSubWindow(canvas) \
-            .resize(
-                canvas.widget().width() + CANVAS_PADDING,
-                canvas.widget().height() + CANVAS_PADDING
-            )
+    def add_canvas_for_filename(self, filename):
+        CANVAS_PADDING = 60
+        canvas = Canvas.scrollable(self, filename)
+
+        subwindow = self.document_area.addSubWindow(canvas)
+        subwindow.resize(
+            canvas.widget().width() + CANVAS_PADDING,
+            canvas.widget().height() + CANVAS_PADDING
+        )
+        subwindow.show()
 
         self.documents.append(canvas.widget())
         self.current_document = len(self.documents) - 1
@@ -196,6 +209,17 @@ class Wiggle(QMainWindow):
         if self.documents:
             return self.documents[self.current_document]
         return None
+
+    def open(self):
+        filename = QFileDialog.getOpenFileName(
+            self,
+            'Open image',
+            os.getcwd(),
+            'PNG images (*.png)'
+        )[0]
+
+        if filename:
+            self.add_canvas_for_filename(filename)
 
     def save(self):
         self.statusbar.clearMessage()
@@ -250,20 +274,20 @@ class Canvas(QMainWindow):
     ZOOM = 4
 
     @classmethod
-    def scrollable(cls, app):
+    def scrollable(cls, app, filename=None):
         window = QScrollArea()
 
         window.setBackgroundRole(QPalette.Midlight)
-        window.setWidget(cls(app))
+        window.setWidget(cls(app, filename))
         window.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         window.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
         return window
 
-    def __init__(self, app):
+    def __init__(self, app, filename=None):
         super().__init__()
         self.app = app
-        self.image = Image()
+        self.image = Image(filename)
         self.resize(self.width(), self.height())
         self.show()
 
