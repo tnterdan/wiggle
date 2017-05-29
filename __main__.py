@@ -7,14 +7,16 @@ from PyQt5.QtGui import (
     QIcon,
     QImage,
     QPainter,
+    QPalette,
 )
 from PyQt5.QtWidgets import (
     QAction,
     QApplication,
-    QDesktopWidget,
     QDockWidget,
     QFileDialog,
     QMainWindow,
+    QMdiArea,
+    QScrollArea,
     QWidget,
 )
 
@@ -27,14 +29,14 @@ class ColorSwatch(object):
     WIDTH = 32
     HEIGHT = 32
 
-    def __init__(self, color, index, parent_widget, canvas_widget):
+    def __init__(self, color, index, parent_widget, app):
         self.color = color
         self.index = index
 
         self.switch_action = QAction('Select Color', parent_widget)
         self.switch_action.setStatusTip('Select color')
         self.switch_action.triggered.connect(
-            lambda: canvas_widget.switch_brush_color(self.color))
+            lambda: app.switch_brush_color(self.color))
 
     def draw(self, painter):
         painter.fillRect(
@@ -79,8 +81,8 @@ class Image(object):
     WIDTH = 256
     HEIGHT = 256
 
-    def __init__(self):
-        self.filename = None
+    def __init__(self, filename=None):
+        self.filename = filename
 
         layer = QImage(
             self.WIDTH,
@@ -88,35 +90,36 @@ class Image(object):
             QImage.Format_ARGB32
         )
 
-        painter = QPainter()
-        painter.begin(layer)
-        painter.fillRect(
-            0,
-            0,
-            layer.width(),
-            layer.height(),
-            QColor(255, 255, 255)
-        )
-        painter.end()
+        if self.filename:
+            layer.load(self.filename)
+        else:
+            painter = QPainter()
+            painter.begin(layer)
+            painter.fillRect(
+                0,
+                0,
+                layer.width(),
+                layer.height(),
+                QColor(255, 255, 255)
+            )
+            painter.end()
 
         self.layers = [layer]
         self.current_layer = 0
 
-        self.brush = Brush(QColor(255, 0, 0))
-
     def width(self):
-        return self.WIDTH
+        return max(layer.width() for layer in self.layers)
 
     def height(self):
-        return self.HEIGHT
+        return max(layer.height() for layer in self.layers)
 
-    def draw_with_brush(self, pos):
+    def draw_with_brush(self, brush, pos):
         painter = QPainter()
         painter.begin(self.layers[self.current_layer])
         painter.drawImage(
             pos,
-            self.brush.image,
-            QRect(0, 0, self.brush.width(), self.brush.height())
+            brush.image,
+            QRect(0, 0, brush.width(), brush.height())
         )
         painter.end()
 
@@ -140,65 +143,131 @@ class Image(object):
         self.composited().save(self.filename, format=None)
 
 
+class OpenedImage(object):
+    def __init__(self, mdi_window):
+        self.window = mdi_window
+
+    def canvas(self):
+        # The MDI window's widget is a scroll area, and the scroll area's
+        # widget is the actual canvas.
+        return self.window.widget().widget()
+
+    def filename(self):
+        return self.canvas().image.filename
+
+
 class Wiggle(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.canvas = Canvas()
-        self.setCentralWidget(self.canvas)
+        self.brush = Brush(QColor(255, 0, 0))
 
-        saveAction = QAction(QIcon.fromTheme('document-save'), 'Save', self)
-        saveAction.setShortcut('Ctrl+S')
-        saveAction.setStatusTip('Save image')
-        saveAction.triggered.connect(self.save)
+        self.document_area = QMdiArea()
+        self.setCentralWidget(self.document_area)
+
+        self.documents = []
+        self.current_document = 0
+        self.add_empty_canvas()
+
+        open_action = QAction(QIcon.fromTheme('document-open'), 'Open', self)
+        open_action.setShortcut('Ctrl+O')
+        open_action.setStatusTip('Open image')
+        open_action.triggered.connect(self.open)
+
+        save_action = QAction(QIcon.fromTheme('document-save'), 'Save', self)
+        save_action.setShortcut('Ctrl+S')
+        save_action.setStatusTip('Save image')
+        save_action.triggered.connect(self.save)
 
         self.statusbar = self.statusBar()
 
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
-        fileMenu.addAction(saveAction)
+        fileMenu.addAction(open_action)
+        fileMenu.addAction(save_action)
 
         toolbar = self.addToolBar('Main')
-        toolbar.addAction(saveAction)
+        toolbar.addAction(open_action)
+        toolbar.addAction(save_action)
 
-        self.swatches = Swatches(self.canvas)
+        self.swatches = Swatches(self)
         swatches_menu = QDockWidget(self)
         swatches_menu.setFeatures(QDockWidget.DockWidgetVerticalTitleBar)
         swatches_menu.setWidget(self.swatches)
         self.addDockWidget(Qt.TopDockWidgetArea, swatches_menu)
 
-        # Resize and center on the screen
-        self.resize(
-            self.canvas.width(),
-            self.canvas.height()
-        )
-
-        geom = self.frameGeometry()
-        geom.moveCenter(QDesktopWidget().availableGeometry().center())
-        self.move(geom.topLeft())
-
         self.setWindowTitle(
             '{} v{}'.format(APPLICATION_TITLE, APPLICATION_VERSION))
 
-        self.show()
+        self.showMaximized()
+
+    def add_empty_canvas(self):
+        self.add_canvas_for_filename(None)
+
+    def add_canvas_for_filename(self, filename):
+        CANVAS_PADDING = 60
+        canvas = Canvas.scrollable(self, filename)
+
+        subwindow = self.document_area.addSubWindow(canvas)
+        subwindow.resize(
+            canvas.widget().width() + CANVAS_PADDING,
+            canvas.widget().height() + CANVAS_PADDING
+        )
+        subwindow.setWindowTitle(filename if filename else 'New image')
+        subwindow.show()
+
+        self.documents.append(OpenedImage(subwindow))
+        self.current_document = len(self.documents) - 1
+
+    def get_current_document(self):
+        if self.documents:
+            return self.documents[self.current_document]
+        return None
+
+    def open(self):
+        filename = QFileDialog.getOpenFileName(
+            self,
+            'Open image',
+            os.getcwd(),
+            'PNG images (*.png)'
+        )[0]
+
+        if filename:
+            existing = self.find_existing_document_for_filename(filename)
+            if existing:
+                self.document_area.setActiveSubWindow(existing.window)
+            else:
+                self.add_canvas_for_filename(filename)
+
+    def find_existing_document_for_filename(self, filename):
+        for document in self.documents:
+            if document.filename() == filename:
+                return document
+        return None
 
     def save(self):
         self.statusbar.clearMessage()
-        saved_filename = self.canvas.save()
+
+        document = self.get_current_document()
+        if document:
+            saved_filename = document.canvas().save()
         if saved_filename:
             self.statusbar.showMessage('Saved to {}'.format(saved_filename))
 
+    def switch_brush_color(self, color):
+        self.brush = Brush(color)
+
 
 class Swatches(QWidget):
-    def __init__(self, canvas_widget):
+    def __init__(self, app):
         super().__init__()
 
         # Swatches
         self.swatches = [
-            ColorSwatch(QColor(0, 0, 0), 0, self, canvas_widget),
-            ColorSwatch(QColor(255, 255, 255), 1, self, canvas_widget),
-            ColorSwatch(QColor(212, 64, 16), 2, self, canvas_widget),
-            ColorSwatch(QColor(64, 128, 212), 3, self, canvas_widget),
+            ColorSwatch(QColor(0, 0, 0), 0, self, app),
+            ColorSwatch(QColor(255, 255, 255), 1, self, app),
+            ColorSwatch(QColor(212, 64, 16), 2, self, app),
+            ColorSwatch(QColor(64, 128, 212), 3, self, app),
         ]
 
         self.setMinimumWidth(256)
@@ -225,12 +294,26 @@ class Swatches(QWidget):
         self.swatches[swatch_index].switch_action.trigger()
 
 
-class Canvas(QWidget):
+class Canvas(QMainWindow):
     ZOOM = 4
 
-    def __init__(self):
+    @classmethod
+    def scrollable(cls, app, filename=None):
+        window = QScrollArea()
+
+        window.setBackgroundRole(QPalette.Midlight)
+        window.setWidget(cls(app, filename))
+        window.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        window.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        return window
+
+    def __init__(self, app, filename=None):
         super().__init__()
-        self.image = Image()
+        self.app = app
+        self.image = Image(filename)
+        self.resize(self.width(), self.height())
+        self.show()
 
     def width(self):
         return self.image.width() * self.ZOOM
@@ -239,7 +322,7 @@ class Canvas(QWidget):
         return self.image.height() * self.ZOOM
 
     def mousePressEvent(self, event):
-        self.image.draw_with_brush(event.pos() / self.ZOOM)
+        self.image.draw_with_brush(self.app.brush, event.pos() / self.ZOOM)
         self.update()
 
     def mouseMoveEvent(self, event):
@@ -248,7 +331,7 @@ class Canvas(QWidget):
         if not is_left_button_pressed:
             return
 
-        self.image.draw_with_brush(event.pos() / self.ZOOM)
+        self.image.draw_with_brush(self.app.brush, event.pos() / self.ZOOM)
         self.update()
 
     def paintEvent(self, event):
@@ -296,9 +379,6 @@ class Canvas(QWidget):
             return True
 
         return False
-
-    def switch_brush_color(self, color):
-        self.image.brush = Brush(color)
 
 
 if __name__ == '__main__':
