@@ -169,26 +169,26 @@ class Wiggle(QMainWindow):
         self.current_document = 0
         self.add_empty_canvas()
 
-        openAction = QAction(QIcon.fromTheme('document-open'), 'Open', self)
-        openAction.setShortcut('Ctrl+O')
-        openAction.setStatusTip('Open image')
-        openAction.triggered.connect(self.open)
+        open_action = QAction(QIcon.fromTheme('document-open'), 'Open', self)
+        open_action.setShortcut('Ctrl+O')
+        open_action.setStatusTip('Open image')
+        open_action.triggered.connect(self.open)
 
-        saveAction = QAction(QIcon.fromTheme('document-save'), 'Save', self)
-        saveAction.setShortcut('Ctrl+S')
-        saveAction.setStatusTip('Save image')
-        saveAction.triggered.connect(self.save)
+        save_action = QAction(QIcon.fromTheme('document-save'), 'Save', self)
+        save_action.setShortcut('Ctrl+S')
+        save_action.setStatusTip('Save image')
+        save_action.triggered.connect(self.save)
 
         self.statusbar = self.statusBar()
 
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
-        fileMenu.addAction(openAction)
-        fileMenu.addAction(saveAction)
+        fileMenu.addAction(open_action)
+        fileMenu.addAction(save_action)
 
         toolbar = self.addToolBar('Main')
-        toolbar.addAction(openAction)
-        toolbar.addAction(saveAction)
+        toolbar.addAction(open_action)
+        toolbar.addAction(save_action)
 
         self.swatches = Swatches(self)
         swatches_menu = QDockWidget(self)
