@@ -12,6 +12,7 @@ from PyQt5.QtWidgets import (
     QAction,
     QApplication,
     QDesktopWidget,
+    QDockWidget,
     QFileDialog,
     QMainWindow,
     QWidget,
@@ -20,6 +21,35 @@ from PyQt5.QtWidgets import (
 
 APPLICATION_TITLE = 'Wiggle'
 APPLICATION_VERSION = '0.1'
+
+
+class ColorSwatch(object):
+    WIDTH = 32
+    HEIGHT = 32
+
+    def __init__(self, color, index, parent_widget, canvas_widget):
+        self.color = color
+        self.index = index
+
+        self.switch_action = QAction('Select Color', parent_widget)
+        self.switch_action.setStatusTip('Select color')
+        self.switch_action.triggered.connect(
+            lambda: canvas_widget.switch_brush_color(self.color))
+
+    def draw(self, painter):
+        painter.fillRect(
+            self.index * self.WIDTH,
+            0,
+            self.WIDTH,
+            self.HEIGHT,
+            self.color
+        )
+        painter.drawRect(
+            self.index * self.WIDTH,
+            0,
+            self.WIDTH,
+            self.HEIGHT
+        )
 
 
 class Brush(QImage):
@@ -126,6 +156,12 @@ class Wiggle(QMainWindow):
         toolbar = self.addToolBar('Main')
         toolbar.addAction(saveAction)
 
+        self.swatches = Swatches(self.canvas)
+        swatches_menu = QDockWidget(self)
+        swatches_menu.setFeatures(QDockWidget.DockWidgetVerticalTitleBar)
+        swatches_menu.setWidget(self.swatches)
+        self.addDockWidget(Qt.TopDockWidgetArea, swatches_menu)
+
         # Resize and center on the screen
         self.resize(
             self.canvas.width(),
@@ -146,6 +182,42 @@ class Wiggle(QMainWindow):
         saved_filename = self.canvas.save()
         if saved_filename:
             self.statusbar.showMessage('Saved to {}'.format(saved_filename))
+
+
+class Swatches(QWidget):
+    def __init__(self, canvas_widget):
+        super().__init__()
+
+        # Swatches
+        self.swatches = [
+            ColorSwatch(QColor(0, 0, 0), 0, self, canvas_widget),
+            ColorSwatch(QColor(255, 255, 255), 1, self, canvas_widget),
+            ColorSwatch(QColor(212, 64, 16), 2, self, canvas_widget),
+            ColorSwatch(QColor(64, 128, 212), 3, self, canvas_widget),
+        ]
+
+        self.setMinimumWidth(256)
+        self.setMinimumHeight(34)
+
+    def paintEvent(self, event):
+        painter = QPainter()
+        painter.begin(self)
+
+        for swatch in self.swatches:
+            swatch.draw(painter)
+
+        painter.end()
+
+    def mousePressEvent(self, event):
+        if event.button() != Qt.LeftButton:
+            return
+
+        swatch_index = event.x() // ColorSwatch.WIDTH
+
+        if swatch_index > len(self.swatches):
+            return
+
+        self.swatches[swatch_index].switch_action.trigger()
 
 
 class Canvas(QWidget):
@@ -219,6 +291,9 @@ class Canvas(QWidget):
             return True
 
         return False
+
+    def switch_brush_color(self, color):
+        print('Switch brush color')
 
 
 if __name__ == '__main__':
