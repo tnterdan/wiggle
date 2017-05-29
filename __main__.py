@@ -52,22 +52,27 @@ class ColorSwatch(object):
         )
 
 
-class Brush(QImage):
-    def __init__(self):
-        super().__init__(3, 3, QImage.Format_ARGB32)
+class Brush(object):
+    def __init__(self, color):
+        self.image = QImage(3, 3, QImage.Format_ARGB32)
 
-        red = QColor(255, 0, 0)
         transparent = QColor(0, 0, 0, 0)
 
-        self.setPixelColor(0, 0, transparent)
-        self.setPixelColor(0, 1, red)
-        self.setPixelColor(0, 2, transparent)
-        self.setPixelColor(1, 0, red)
-        self.setPixelColor(1, 1, red)
-        self.setPixelColor(1, 2, red)
-        self.setPixelColor(2, 0, transparent)
-        self.setPixelColor(2, 1, red)
-        self.setPixelColor(2, 2, transparent)
+        self.image.setPixelColor(0, 0, transparent)
+        self.image.setPixelColor(0, 1, color)
+        self.image.setPixelColor(0, 2, transparent)
+        self.image.setPixelColor(1, 0, color)
+        self.image.setPixelColor(1, 1, color)
+        self.image.setPixelColor(1, 2, color)
+        self.image.setPixelColor(2, 0, transparent)
+        self.image.setPixelColor(2, 1, color)
+        self.image.setPixelColor(2, 2, transparent)
+
+    def width(self):
+        return self.image.width()
+
+    def height(self):
+        return self.image.height()
 
 
 class Image(object):
@@ -97,7 +102,7 @@ class Image(object):
         self.layers = [layer]
         self.current_layer = 0
 
-        self.brush = Brush()
+        self.brush = Brush(QColor(255, 0, 0))
 
     def width(self):
         return self.WIDTH
@@ -110,7 +115,7 @@ class Image(object):
         painter.begin(self.layers[self.current_layer])
         painter.drawImage(
             pos,
-            self.brush,
+            self.brush.image,
             QRect(0, 0, self.brush.width(), self.brush.height())
         )
         painter.end()
@@ -293,7 +298,7 @@ class Canvas(QWidget):
         return False
 
     def switch_brush_color(self, color):
-        print('Switch brush color')
+        self.image.brush = Brush(color)
 
 
 if __name__ == '__main__':
