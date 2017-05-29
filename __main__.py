@@ -143,6 +143,19 @@ class Image(object):
         self.composited().save(self.filename, format=None)
 
 
+class OpenedImage(object):
+    def __init__(self, mdi_window):
+        self.window = mdi_window
+
+    def canvas(self):
+        # The MDI window's widget is a scroll area, and the scroll area's
+        # widget is the actual canvas.
+        return self.window.widget().widget()
+
+    def filename(self):
+        return self.canvas().image.filename
+
+
 class Wiggle(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -202,7 +215,7 @@ class Wiggle(QMainWindow):
         )
         subwindow.show()
 
-        self.documents.append(canvas.widget())
+        self.documents.append(OpenedImage(subwindow))
         self.current_document = len(self.documents) - 1
 
     def get_current_document(self):
@@ -219,14 +232,24 @@ class Wiggle(QMainWindow):
         )[0]
 
         if filename:
-            self.add_canvas_for_filename(filename)
+            existing = self.find_existing_document_for_filename(filename)
+            if existing:
+                self.document_area.setActiveSubWindow(existing.window)
+            else:
+                self.add_canvas_for_filename(filename)
+
+    def find_existing_document_for_filename(self, filename):
+        for document in self.documents:
+            if document.filename() == filename:
+                return document
+        return None
 
     def save(self):
         self.statusbar.clearMessage()
 
         document = self.get_current_document()
         if document:
-            saved_filename = document.save()
+            saved_filename = document.canvas().save()
         if saved_filename:
             self.statusbar.showMessage('Saved to {}'.format(saved_filename))
 
