@@ -39,7 +39,7 @@ class Swatches(QWidget):
 
         swatch_index = event.x() // ColorSwatch.WIDTH
 
-        if swatch_index > len(self.swatches):
+        if swatch_index >= len(self.swatches):
             return
 
         self.swatches[swatch_index].switch_action.trigger()
