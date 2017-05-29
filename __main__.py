@@ -213,6 +213,7 @@ class Wiggle(QMainWindow):
             canvas.widget().width() + CANVAS_PADDING,
             canvas.widget().height() + CANVAS_PADDING
         )
+        subwindow.setWindowTitle(filename if filename else 'New image')
         subwindow.show()
 
         self.documents.append(OpenedImage(subwindow))
