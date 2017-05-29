@@ -1,13 +1,12 @@
 import os
 import sys
 
-from PyQt5.QtCore import QPoint, QRect, Qt
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import (
     QColor,
     QIcon,
     QImage,
     QPainter,
-    QPalette,
 )
 from PyQt5.QtWidgets import (
     QAction,
@@ -16,9 +15,10 @@ from PyQt5.QtWidgets import (
     QFileDialog,
     QMainWindow,
     QMdiArea,
-    QScrollArea,
     QWidget,
 )
+
+from canvas import Canvas
 
 
 APPLICATION_TITLE = 'Wiggle'
@@ -75,72 +75,6 @@ class Brush(object):
 
     def height(self):
         return self.image.height()
-
-
-class Image(object):
-    WIDTH = 256
-    HEIGHT = 256
-
-    def __init__(self, filename=None):
-        self.filename = filename
-
-        layer = QImage(
-            self.WIDTH,
-            self.HEIGHT,
-            QImage.Format_ARGB32
-        )
-
-        if self.filename:
-            layer.load(self.filename)
-        else:
-            painter = QPainter()
-            painter.begin(layer)
-            painter.fillRect(
-                0,
-                0,
-                layer.width(),
-                layer.height(),
-                QColor(255, 255, 255)
-            )
-            painter.end()
-
-        self.layers = [layer]
-        self.current_layer = 0
-
-    def width(self):
-        return max(layer.width() for layer in self.layers)
-
-    def height(self):
-        return max(layer.height() for layer in self.layers)
-
-    def draw_with_brush(self, brush, pos):
-        painter = QPainter()
-        painter.begin(self.layers[self.current_layer])
-        painter.drawImage(
-            pos,
-            brush.image,
-            QRect(0, 0, brush.width(), brush.height())
-        )
-        painter.end()
-
-    def composited(self):
-        target = QImage(self.width(), self.height(), QImage.Format_ARGB32)
-
-        painter = QPainter()
-        painter.begin(target)
-
-        for layer in self.layers:
-            painter.drawImage(
-                QPoint(0, 0),
-                layer,
-                QRect(0, 0, layer.width(), layer.height())
-            )
-
-        painter.end()
-        return target
-
-    def save(self):
-        self.composited().save(self.filename, format=None)
 
 
 class OpenedImage(object):
@@ -292,93 +226,6 @@ class Swatches(QWidget):
             return
 
         self.swatches[swatch_index].switch_action.trigger()
-
-
-class Canvas(QMainWindow):
-    ZOOM = 4
-
-    @classmethod
-    def scrollable(cls, app, filename=None):
-        window = QScrollArea()
-
-        window.setBackgroundRole(QPalette.Midlight)
-        window.setWidget(cls(app, filename))
-        window.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        window.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-
-        return window
-
-    def __init__(self, app, filename=None):
-        super().__init__()
-        self.app = app
-        self.image = Image(filename)
-        self.resize(self.width(), self.height())
-        self.show()
-
-    def width(self):
-        return self.image.width() * self.ZOOM
-
-    def height(self):
-        return self.image.height() * self.ZOOM
-
-    def mousePressEvent(self, event):
-        self.image.draw_with_brush(self.app.brush, event.pos() / self.ZOOM)
-        self.update()
-
-    def mouseMoveEvent(self, event):
-        is_left_button_pressed = \
-            event.buttons() & Qt.LeftButton == Qt.LeftButton
-        if not is_left_button_pressed:
-            return
-
-        self.image.draw_with_brush(self.app.brush, event.pos() / self.ZOOM)
-        self.update()
-
-    def paintEvent(self, event):
-        composited = \
-            self.image.composited().scaled(
-                self.image.width() * self.ZOOM,
-                self.image.height() * self.ZOOM,
-                Qt.IgnoreAspectRatio,
-                Qt.FastTransformation
-            )
-
-        painter = QPainter()
-        painter.begin(self)
-        painter.drawImage(
-            QPoint(0, 0),
-            composited,
-            QRect(0, 0, composited.width(), composited.height())
-        )
-        painter.end()
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_S and \
-                bool(event.modifiers() and Qt.ControlModifier):
-            self.save()
-
-    def save(self):
-        if self.capture_filename_if_necessary():
-            self.image.save()
-            return self.image.filename
-        return None
-
-    def capture_filename_if_necessary(self):
-        if self.image.filename:
-            return True
-
-        filename = QFileDialog.getSaveFileName(
-            self,
-            'Save image',
-            os.getcwd(),
-            'PNG images (*.png)'
-        )[0]
-
-        if filename:
-            self.image.filename = filename
-            return True
-
-        return False
 
 
 if __name__ == '__main__':
