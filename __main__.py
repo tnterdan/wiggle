@@ -1,13 +1,10 @@
 import os
 import sys
 
-from PyQt5.QtCore import QPoint, QRect, Qt
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import (
     QColor,
     QIcon,
-    QImage,
-    QPainter,
-    QPalette,
 )
 from PyQt5.QtWidgets import (
     QAction,
@@ -16,131 +13,14 @@ from PyQt5.QtWidgets import (
     QFileDialog,
     QMainWindow,
     QMdiArea,
-    QScrollArea,
-    QWidget,
 )
 
+from brush import Brush
+from canvas import Canvas
+from swatch import Swatches
 
 APPLICATION_TITLE = 'Wiggle'
 APPLICATION_VERSION = '0.1'
-
-
-class ColorSwatch(object):
-    WIDTH = 32
-    HEIGHT = 32
-
-    def __init__(self, color, index, parent_widget, app):
-        self.color = color
-        self.index = index
-
-        self.switch_action = QAction('Select Color', parent_widget)
-        self.switch_action.setStatusTip('Select color')
-        self.switch_action.triggered.connect(
-            lambda: app.switch_brush_color(self.color))
-
-    def draw(self, painter):
-        painter.fillRect(
-            self.index * self.WIDTH,
-            0,
-            self.WIDTH,
-            self.HEIGHT,
-            self.color
-        )
-        painter.drawRect(
-            self.index * self.WIDTH,
-            0,
-            self.WIDTH,
-            self.HEIGHT
-        )
-
-
-class Brush(object):
-    def __init__(self, color):
-        self.image = QImage(3, 3, QImage.Format_ARGB32)
-
-        transparent = QColor(0, 0, 0, 0)
-
-        self.image.setPixelColor(0, 0, transparent)
-        self.image.setPixelColor(0, 1, color)
-        self.image.setPixelColor(0, 2, transparent)
-        self.image.setPixelColor(1, 0, color)
-        self.image.setPixelColor(1, 1, color)
-        self.image.setPixelColor(1, 2, color)
-        self.image.setPixelColor(2, 0, transparent)
-        self.image.setPixelColor(2, 1, color)
-        self.image.setPixelColor(2, 2, transparent)
-
-    def width(self):
-        return self.image.width()
-
-    def height(self):
-        return self.image.height()
-
-
-class Image(object):
-    WIDTH = 256
-    HEIGHT = 256
-
-    def __init__(self, filename=None):
-        self.filename = filename
-
-        layer = QImage(
-            self.WIDTH,
-            self.HEIGHT,
-            QImage.Format_ARGB32
-        )
-
-        if self.filename:
-            layer.load(self.filename)
-        else:
-            painter = QPainter()
-            painter.begin(layer)
-            painter.fillRect(
-                0,
-                0,
-                layer.width(),
-                layer.height(),
-                QColor(255, 255, 255)
-            )
-            painter.end()
-
-        self.layers = [layer]
-        self.current_layer = 0
-
-    def width(self):
-        return max(layer.width() for layer in self.layers)
-
-    def height(self):
-        return max(layer.height() for layer in self.layers)
-
-    def draw_with_brush(self, brush, pos):
-        painter = QPainter()
-        painter.begin(self.layers[self.current_layer])
-        painter.drawImage(
-            pos,
-            brush.image,
-            QRect(0, 0, brush.width(), brush.height())
-        )
-        painter.end()
-
-    def composited(self):
-        target = QImage(self.width(), self.height(), QImage.Format_ARGB32)
-
-        painter = QPainter()
-        painter.begin(target)
-
-        for layer in self.layers:
-            painter.drawImage(
-                QPoint(0, 0),
-                layer,
-                QRect(0, 0, layer.width(), layer.height())
-            )
-
-        painter.end()
-        return target
-
-    def save(self):
-        self.composited().save(self.filename, format=None)
 
 
 class OpenedImage(object):
@@ -256,129 +136,6 @@ class Wiggle(QMainWindow):
 
     def switch_brush_color(self, color):
         self.brush = Brush(color)
-
-
-class Swatches(QWidget):
-    def __init__(self, app):
-        super().__init__()
-
-        # Swatches
-        self.swatches = [
-            ColorSwatch(QColor(0, 0, 0), 0, self, app),
-            ColorSwatch(QColor(255, 255, 255), 1, self, app),
-            ColorSwatch(QColor(212, 64, 16), 2, self, app),
-            ColorSwatch(QColor(64, 128, 212), 3, self, app),
-        ]
-
-        self.setMinimumWidth(256)
-        self.setMinimumHeight(34)
-
-    def paintEvent(self, event):
-        painter = QPainter()
-        painter.begin(self)
-
-        for swatch in self.swatches:
-            swatch.draw(painter)
-
-        painter.end()
-
-    def mousePressEvent(self, event):
-        if event.button() != Qt.LeftButton:
-            return
-
-        swatch_index = event.x() // ColorSwatch.WIDTH
-
-        if swatch_index > len(self.swatches):
-            return
-
-        self.swatches[swatch_index].switch_action.trigger()
-
-
-class Canvas(QMainWindow):
-    ZOOM = 4
-
-    @classmethod
-    def scrollable(cls, app, filename=None):
-        window = QScrollArea()
-
-        window.setBackgroundRole(QPalette.Midlight)
-        window.setWidget(cls(app, filename))
-        window.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        window.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-
-        return window
-
-    def __init__(self, app, filename=None):
-        super().__init__()
-        self.app = app
-        self.image = Image(filename)
-        self.resize(self.width(), self.height())
-        self.show()
-
-    def width(self):
-        return self.image.width() * self.ZOOM
-
-    def height(self):
-        return self.image.height() * self.ZOOM
-
-    def mousePressEvent(self, event):
-        self.image.draw_with_brush(self.app.brush, event.pos() / self.ZOOM)
-        self.update()
-
-    def mouseMoveEvent(self, event):
-        is_left_button_pressed = \
-            event.buttons() & Qt.LeftButton == Qt.LeftButton
-        if not is_left_button_pressed:
-            return
-
-        self.image.draw_with_brush(self.app.brush, event.pos() / self.ZOOM)
-        self.update()
-
-    def paintEvent(self, event):
-        composited = \
-            self.image.composited().scaled(
-                self.image.width() * self.ZOOM,
-                self.image.height() * self.ZOOM,
-                Qt.IgnoreAspectRatio,
-                Qt.FastTransformation
-            )
-
-        painter = QPainter()
-        painter.begin(self)
-        painter.drawImage(
-            QPoint(0, 0),
-            composited,
-            QRect(0, 0, composited.width(), composited.height())
-        )
-        painter.end()
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_S and \
-                bool(event.modifiers() and Qt.ControlModifier):
-            self.save()
-
-    def save(self):
-        if self.capture_filename_if_necessary():
-            self.image.save()
-            return self.image.filename
-        return None
-
-    def capture_filename_if_necessary(self):
-        if self.image.filename:
-            return True
-
-        filename = QFileDialog.getSaveFileName(
-            self,
-            'Save image',
-            os.getcwd(),
-            'PNG images (*.png)'
-        )[0]
-
-        if filename:
-            self.image.filename = filename
-            return True
-
-        return False
 
 
 if __name__ == '__main__':
